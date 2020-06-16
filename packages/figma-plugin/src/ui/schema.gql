@@ -1,0 +1,32 @@
+type SVGProps @embedded {
+  width: Float
+  height: Float
+}
+
+type SeatProps @embedded {
+  r: Float
+  fill: String
+  stroke: String
+  strokeWidth: Float
+}
+
+type Seat @embedded {
+  id: String
+  cx: Float
+  cy: Float
+}
+
+type Group @embedded {
+  id: String
+  seats: [Seat]
+}
+
+type SeatsSVG @collection(name: "seatsSVG") {
+  svgProps: SVGProps
+  commonSeatProps: SeatProps
+  groups: [Group]
+}
+
+type Query {
+  seatSVG: SeatsSVG
+}

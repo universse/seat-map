@@ -1,0 +1,39 @@
+namespace SeatMap;
+
+struct Bounds {
+  x1:int32;
+  y1:int32;
+  x2:int32;
+  y2:int32;
+}
+
+table Seat {
+  id:string;
+  cx:int32;
+  cy:int32;
+}
+
+table Group {
+  seats:[Seat];
+  bounds:Bounds;
+}
+
+struct SVGProps {
+  width:int32;
+  height:int32;
+}
+
+table SeatProps {
+  r:int8;
+  fill:string;
+  stroke:string;
+  strokeWidth:int8;
+}
+
+table SeatMap {
+  svgProps:SVGProps;
+  seatProps:SeatProps;
+  groups:[Group];
+}
+
+root_type SeatMap;

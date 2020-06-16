@@ -1,0 +1,26 @@
+{
+  "extends": [
+    "stylelint-config-standard",
+    "stylelint-config-prettier",
+    "stylelint-config-styled-components"
+  ],
+  "plugins": [
+		"stylelint-order",
+	],
+  "processors": [
+    [
+      "stylelint-processor-styled-components", {
+        "ignoreFiles": [
+          "**/*.scss",
+        ]
+      }
+    ]
+  ],
+  "rules": {
+		"order/order": [
+			"custom-properties",
+			"declarations"
+		],
+		"order/properties-alphabetical-order": true
+	}
+}

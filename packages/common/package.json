@@ -1,0 +1,16 @@
+{
+  "name": "@seat-map/common",
+  "description": "",
+  "version": "1.0.0",
+  "main": "dist/index.js",
+  "module": "dist/index.mjs",
+  "scripts": {
+    "build": "microbundle",
+    "start": "microbundle watch"
+  },
+  "dependencies": {
+    "isomorphic-unfetch": "3.0.0"
+  },
+  "source": "src/index.js",
+  "unpkg": "dist/index.umd.js"
+}

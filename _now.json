@@ -1,0 +1,39 @@
+{
+  "alias": ["cherry.now.sh"],
+  "build": {
+    "env": {
+      "FIREBASE_COLLECTIONS": "@firebase_collections",
+      "GATSBY_API": "@gatsby_api",
+      "GATSBY_FIREBASE_USERS": "@gatsby_firebase_users",
+      "OCTOPUS_KEY": "@octopus_key"
+    }
+  },
+  "builds": [
+    { "src": "packages/functions/api/*.js", "use": "@now/node" },
+    { "src": "packages/functions/graphql/index.js", "use": "@now/node" },
+    { "src": "packages/client/package.json", "use": "@now/static-build" }
+  ],
+  "routes": [
+    {
+      "src": "/api/subscribe",
+      "dest": "https://emailoctopus.com/api/1.5/lists/28c2f781-9e6b-11e9-9307-06b4694bee2a/contacts"
+    },
+    {
+      "src": "/api/([^/]+)",
+      "dest": "/packages/functions/api/$1.js"
+    },
+    {
+      "src": "/fire/int",
+      "dest": "https://us-central1-cherry-c183f.cloudfunctions.net/int"
+    },
+    {
+      "src": "/fire/(.*)",
+      "dest": "https://us-central1-cherry-c183f.cloudfunctions.net/$1"
+    },
+    { "src": "/graphql", "dest": "/packages/functions/graphql" },
+    {
+      "src": "/(.*)",
+      "dest": "/packages/client/$1"
+    }
+  ]
+}

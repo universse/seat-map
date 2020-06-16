@@ -1,0 +1,30 @@
+syntax = "proto3";
+
+message SeatMap {
+  message SVGProps {
+    required int32 width = 1;
+    required int32 height = 2;
+  }
+
+  message SeatProps {
+    required int32 r = 1;
+    required string fill = 2;
+    required string stroke = 3;
+    required int32 strokeWidth = 4;
+  }
+
+  message Seat {
+    required int32 id = 1;
+    required int32 cx = 2;
+    required int32 cy = 3;
+  }
+
+  message Group {
+     repeated Seat seats = 1;
+     repeated int32 bounds = 2;
+  }
+
+  required SVGProps svgProps = 1;
+  required SeatProps seatProps = 2;
+  repeated Group groups = 3;
+}

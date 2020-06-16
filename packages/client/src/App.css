@@ -1,0 +1,26 @@
+#seat-wrapper {
+  height: 100vh;
+  overflow: hidden;
+  touch-action: none;
+  width: 100vw;
+}
+
+svg {
+  height: 100%;
+  transform-origin: 0 0 0;
+  width: 100%;
+}
+
+#areas > * {
+  opacity: 1;
+  transition: opacity 0.25s ease;
+}
+
+#areas > .hidden {
+  opacity: 0;
+}
+
+
+circle {
+
+}

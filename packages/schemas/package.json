@@ -1,0 +1,21 @@
+{
+  "name": "schemas",
+  "version": "1.0.0",
+  "description": "",
+  "source": "src/index.js",
+  "main": "dist/index.js",
+  "module": "dist/index.mjs",
+  "unpkg": "dist/index.umd.js",
+  "scripts": {
+    "build:js": "microbundle",
+    "pbf": "pbf ./src/SeatMap.proto > ./dist/index.js",
+    "start": "microbundle watch"
+  },
+  "dependencies": {
+    "flatbuffers": "^1.12.0",
+    "pbf": "^3.2.1"
+  },
+  "devDependencies": {
+    "pbf-loader": "1.1.0"
+  }
+}
