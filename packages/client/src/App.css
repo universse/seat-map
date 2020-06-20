@@ -9,6 +9,7 @@ svg {
   height: 100%;
   transform-origin: 0 0 0;
   width: 100%;
+  will-change: transform;
 }
 
 #areas > * {

@@ -7,18 +7,14 @@ import './App.css'
 
 // const NODE_ID = '494:10'
 
-// const query = `{
-//   Movie(title: "Inception") {
-//     releaseDate
-//     actors {
-//       name
-//     }
-//   }
-// }`
+// svg bounding rect
+// svg initial size -> minScale, maxScale...
+// drag bounds rubberband
 
-// function queryResolver(query, variables) {
-//   return graphqlRequest('https://graphql.fauna.com/graphql', query, variables)
-// }
+const TargetTypes = {
+  AREA: 'area',
+  SEAT: 'seat',
+}
 
 export default function App () {
   return (
@@ -48,14 +44,7 @@ export default function App () {
           height='816'
           fill='#FD5F60'
         />
-        <rect
-          id='3'
-          x='200'
-          y='1555'
-          width='942'
-          height='1162'
-          fill='#343A40'
-        />
+        <rect x='200' y='1555' width='942' height='1162' fill='#343A40' />
         <rect
           id='4'
           x='4224'
@@ -99,17 +88,21 @@ export default function App () {
 }
 
 function SVG ({ children, id }) {
-  const svgRef = useRef()
+  ////////// web worker
   const seatsWorker = useRef()
 
-  const transform = useRef({ x: 0, y: 0, scale: 1 })
-  const minScale = useRef(1)
-  const maxScale = useRef(2)
-  const scaleChange = useRef(0.5)
-  const scaleThreshold = useRef(1.5)
-  // const isInteracting = useRef(false)
+  useEffect(() => {
+    seatsWorker.current = new SeatsWorker()
 
-  const seatAreas = useRef({})
+    seatsWorker.current.fetchOverviewMap(id).then(console.log)
+
+    return () => {
+      seatsWorker.current.terminate()
+    }
+  }, [id])
+
+  ////////// network condition
+  const isFastConnection = useRef(false)
 
   useEffect(() => {
     let connectionType = ''
@@ -126,28 +119,62 @@ function SVG ({ children, id }) {
       saveData = global.navigator.connection.saveData
     }
 
-    if (connectionType.includes('2g') || saveData) {
-      return null
-    } else {
-      seatsWorker.current = new SeatsWorker()
-
-      seatsWorker.current.fetchMap(id).then(console.log)
-
-      return () => {
-        seatsWorker.current.terminate()
-      }
+    if (!connectionType.includes('2g') && !saveData) {
+      isFastConnection.current = true
     }
-  }, [id])
+  }, [])
 
-  function calculateTransform (
-    event,
-    { x: currentX, y: currentY, scale: currentScale },
-    nextScale
-  ) {
+  ////////// transform
+  const seatAreaNodes = useRef({})
+  const svgRef = useRef()
+
+  const transform = useRef({ x: 0, y: 0, scale: 1 })
+  const minScale = useRef(1)
+  const maxScale = useRef(2)
+  const defaultScaleChange = useRef(0.5)
+  const scaleThreshold = useRef(1.5)
+
+  function measuredRef (node) {
+    if (!node) return
+
+    svgRef.current = node
+    // const seatSize = svgRef.current
+    //   .querySelector('circle')
+    //   .getBoundingClientRect().width
+
+    const seatSize = 2
+
+    maxScale.current = 48 / seatSize
+    defaultScaleChange.current = 0.5 / seatSize
+    minScale.current = 1 - defaultScaleChange.current
+    scaleThreshold.current = (maxScale.current + minScale.current) / 4
+
+    for (const areaNode of document.getElementById('areas').children) {
+      if (!areaNode.id) continue
+
+      seatAreaNodes.current[areaNode.id] = document
+        .getElementById('seats')
+        .appendChild(document.createElement('g'))
+    }
+  }
+
+  ////////// gesture
+  // const isInteracting = useRef(false)
+  const pinchOrigin = useRef([0, 0])
+
+  function calculateTransform ([clientX, clientY], scaleChange) {
+    const { x: currentX, y: currentY, scale: currentScale } = transform.current
+
+    const nextScale = clamp(
+      currentScale - scaleChange,
+      minScale.current,
+      maxScale.current
+    )
+
     const scaleRatio = nextScale / currentScale
 
-    const focalX = event.clientX - currentX
-    const focalY = event.clientY - currentY
+    const focalX = clientX - currentX
+    const focalY = clientY - currentY
 
     const focalDeltaX = scaleRatio * focalX - focalX
     const focalDeltaY = scaleRatio * focalY - focalY
@@ -159,130 +186,139 @@ function SVG ({ children, id }) {
     }
   }
 
-  function getScale (scale) {
-    return Math.max(minScale.current, Math.min(maxScale.current, scale))
-  }
-
-  function measuredRef (node) {
-    if (node !== null) {
-      svgRef.current = node
-      // const seatSize = svgRef.current
-      //   .querySelector('circle')
-      //   .getBoundingClientRect().width
-
-      const seatSize = 2
-
-      maxScale.current = 48 / seatSize
-      scaleChange.current = 0.5 / seatSize
-      minScale.current = 1 - scaleChange.current
-      scaleThreshold.current = (maxScale.current + minScale.current) / 4
-
-      for (const areaNode of document.getElementById('areas').children) {
-        seatAreas.current[areaNode.id] = document
-          .getElementById('seats')
-          .appendChild(document.createElement('g'))
-      }
-    }
-  }
-
   function updateSVGTransform () {
     const { x, y, scale } = transform.current
 
     svgRef.current.style.transform = `translate3d(${x}px, ${y}px, 0) scale(${scale})`
   }
 
-  function buildSeats () {
-    if (transform.current.scale < scaleThreshold.current) {
-      for (const areaNode of document.getElementById('areas').children) {
-        seatAreas.current[areaNode.id].innerHTML = ''
-        document.getElementById(areaNode.id).classList.toggle('hidden', false)
-      }
-    } else {
-      const areaRects = []
+  function handleGestureEnd () {
+    const { buildAreaHtmls } = seatsWorker.current
 
-      for (const areaNode of document.getElementById('areas').children) {
-        areaRects.push(areaNode.getBoundingClientRect())
+    const isPastThreshold = transform.current.scale >= scaleThreshold.current
+    const areaVisibility = []
+
+    for (const areaNode of document.getElementById('areas').children) {
+      if (!areaNode.id) continue
+
+      let isVisible = false
+
+      if (isPastThreshold) {
+        const { top, left, bottom, right } = areaNode.getBoundingClientRect()
+
+        isVisible =
+          bottom >= 0 &&
+          top <=
+            (window.innerHeight || document.documentElement.clientHeight) &&
+          left <= (window.innerWidth || document.documentElement.clientWidth) &&
+          right >= 0
       }
 
-      seatsWorker.current.buildSeats(JSON.stringify(areaRects)).then(areas => {
-        for (const [areaId, html] of areas) {
-          seatAreas.current[areaId].innerHTML = html
-          document.getElementById(areaId).classList.toggle('hidden', !!html)
-        }
-      })
+      areaVisibility.push([areaNode.id, isVisible])
     }
+
+    buildAreaHtmls(areaVisibility).then(areaHtmls => {
+      for (const [areaId, html] of areaHtmls) {
+        seatAreaNodes.current[areaId].innerHTML = html
+        document.getElementById(areaId).classList.toggle('hidden', !!html)
+      }
+    })
   }
-
-  useEffect(() => {
-    // only render when user interacting
-    let id
-
-    // function updateSVGTransform() {
-    //   if (svgRef.current && isInteracting.current) {
-    //     const { x, y, scale } = transform.current
-
-    //     svgRef.current.style.transform = `translate3d(${x}px, ${y}px, 0) scale(${scale})`
-    //   }
-
-    //   id = requestAnimationFrame(updateSVGTransform)
-    // }
-
-    // updateSVGTransform()
-
-    // return () => {
-    //   cancelAnimationFrame(id)
-    // }
-  }, [])
 
   const bind = useGesture(
     {
       onDrag: ({ delta, last }) => {
         // isInteracting.current = !last
-        if (last) {
-          buildSeats()
-          return
-        }
+        if (last) return handleGestureEnd()
 
         const { x, y, scale } = transform.current
         transform.current = { x: x + delta[0], y: y + delta[1], scale }
         updateSVGTransform()
       },
-      onPinch: ({ delta, origin, last }) => {
+      onPinch: ({ direction, first, last, origin }) => {
         // isInteracting.current = !last
-        if (last) {
-          buildSeats()
-          return
+
+        if (first) {
+          pinchOrigin.current = origin
         }
+
+        if (last) return handleGestureEnd()
+
+        // TODO pinch offset
+        // needs interpolate
+        // [minScale.current, 100, maxScale.current]
+        // [offset * speed,0,offset*speed]
+        // use options distance bounds below
+
+        transform.current = calculateTransform(
+          pinchOrigin.current,
+          direction[0] < 0 ? 0.4 : -0.4
+        )
+        updateSVGTransform()
       },
-      onWheel: ({ event, delta, xy, last }) => {
+      onWheel: ({ event, delta, last }) => {
         // isInteracting.current = !last
-        if (last) {
-          buildSeats()
-          return
-        }
+        if (last) return handleGestureEnd()
 
         const multiplier = delta[1] > 0 ? 1 : -1
 
         transform.current = calculateTransform(
-          event,
-          transform.current,
-          getScale(transform.current.scale - multiplier * scaleChange.current)
+          [event.clientX, event.clientY],
+          multiplier * defaultScaleChange.current
         )
         updateSVGTransform()
       },
     },
-    { wheel: { axis: 'y' } }
+    {
+      // drag: { bounds: {}, rubberband: true },
+      pinch: { distanceBounds: { max: 1, min: 1 } },
+      wheel: { axis: 'y' },
+    }
   )
+
+  // useEffect(() => {
+  //   // only render when user interacting
+  //   let id
+
+  //   function updateSVGTransform() {
+  //     if (svgRef.current && isInteracting.current) {
+  //       const { x, y, scale } = transform.current
+
+  //       svgRef.current.style.transform = `translate3d(${x}px, ${y}px, 0) scale(${scale})`
+  //     }
+
+  //     id = requestAnimationFrame(updateSVGTransform)
+  //   }
+
+  //   updateSVGTransform()
+
+  //   return () => {
+  //     cancelAnimationFrame(id)
+  //   }
+  // }, [])
+
+  function handleClick (e) {
+    const targetType = ''
+    const id = e.target.id
+
+    switch (targetType) {
+      case TargetTypes.AREA:
+        if (isFastConnection.current) {
+        } else {
+        }
+        break
+      case TargetTypes.SEAT:
+        break
+      default:
+      // throw new Error('Unsupported target type.')
+    }
+  }
 
   return (
     <div id='seat-wrapper' {...bind()}>
       <svg
         ref={measuredRef}
-        onClick={e => {
-          if (e.target.id.startsWith('seat')) {
-            //
-          }
-        }}
+        onClick={handleClick}
         width='6356'
         height='4271'
         viewBox='0 0 6356 4271'
@@ -294,3 +330,20 @@ function SVG ({ children, id }) {
     </div>
   )
 }
+
+function clamp (value, min, max) {
+  return Math.max(min, Math.min(max, value))
+}
+
+// const query = `{
+//   Movie(title: "Inception") {
+//     releaseDate
+//     actors {
+//       name
+//     }
+//   }
+// }`
+
+// function queryResolver(query, variables) {
+//   return graphqlRequest('https://graphql.fauna.com/graphql', query, variables)
+// }
