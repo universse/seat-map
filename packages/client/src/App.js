@@ -16,7 +16,7 @@ const TargetTypes = {
   SEAT: 'seat',
 }
 
-export default function App () {
+export default function App() {
   return (
     <SVG>
       <g id='areas'>
@@ -87,20 +87,7 @@ export default function App () {
   )
 }
 
-function SVG ({ children, id }) {
-  ////////// web worker
-  const seatsWorker = useRef()
-
-  useEffect(() => {
-    seatsWorker.current = new SeatsWorker()
-
-    seatsWorker.current.fetchOverviewMap(id).then(console.log)
-
-    return () => {
-      seatsWorker.current.terminate()
-    }
-  }, [id])
-
+function SVG({ children, id }) {
   ////////// network condition
   const isFastConnection = useRef(false)
 
@@ -125,8 +112,8 @@ function SVG ({ children, id }) {
   }, [])
 
   ////////// transform
-  const seatAreaNodes = useRef({})
   const svgRef = useRef()
+  const seatAreaNodes = useRef({})
 
   const transform = useRef({ x: 0, y: 0, scale: 1 })
   const minScale = useRef(1)
@@ -134,7 +121,20 @@ function SVG ({ children, id }) {
   const defaultScaleChange = useRef(0.5)
   const scaleThreshold = useRef(1.5)
 
-  function measuredRef (node) {
+  ////////// web worker
+  const seatsWorker = useRef()
+
+  useEffect(() => {
+    seatsWorker.current = new SeatsWorker()
+
+    seatsWorker.current.fetchOverviewMap(id).then(console.log)
+
+    return () => {
+      seatsWorker.current.terminate()
+    }
+  }, [id])
+
+  function measuredRef(node) {
     if (!node) return
 
     svgRef.current = node
@@ -158,15 +158,15 @@ function SVG ({ children, id }) {
     }
   }
 
-  ////////// gesture
+  ////////// gesture handler
   // const isInteracting = useRef(false)
-  const pinchOrigin = useRef([0, 0])
+  const zoomOrigin = useRef([0, 0])
 
-  function calculateTransform ([clientX, clientY], scaleChange) {
+  function calculateTransform([clientX, clientY], scaleChange) {
     const { x: currentX, y: currentY, scale: currentScale } = transform.current
 
     const nextScale = clamp(
-      currentScale - scaleChange,
+      currentScale + scaleChange,
       minScale.current,
       maxScale.current
     )
@@ -186,20 +186,41 @@ function SVG ({ children, id }) {
     }
   }
 
-  function updateSVGTransform () {
+  function updateSVGTransform() {
     const { x, y, scale } = transform.current
 
     svgRef.current.style.transform = `translate3d(${x}px, ${y}px, 0) scale(${scale})`
   }
 
-  function handleGestureEnd () {
-    const { buildAreaHtmls } = seatsWorker.current
-
-    const isPastThreshold = transform.current.scale >= scaleThreshold.current
-    const areaVisibility = []
+  function prebuildAreaSeatsOnZoomingIn() {
+    // TODO
+    // if (isFastConnection.current) {
+    // } else {
+    // }
+    const [x, y] = zoomOrigin.current
 
     for (const areaNode of document.getElementById('areas').children) {
       if (!areaNode.id) continue
+
+      const { top, left, bottom, right } = areaNode.getBoundingClientRect()
+
+      // prefetch mouseover area
+      if (top < y && left < x && bottom > y && right > x) {
+        seatsWorker.current
+          .fetchArea(areaNode.id)
+          // TODO handle error
+          .catch(() => console.log('OOPS 1'))
+        break
+      }
+    }
+  }
+
+  function handleGestureEnd() {
+    const isPastThreshold = transform.current.scale >= scaleThreshold.current
+
+    for (const areaNode of document.getElementById('areas').children) {
+      const areaId = areaNode.id
+      if (!areaId) continue
 
       let isVisible = false
 
@@ -207,22 +228,23 @@ function SVG ({ children, id }) {
         const { top, left, bottom, right } = areaNode.getBoundingClientRect()
 
         isVisible =
-          bottom >= 0 &&
-          top <=
-            (window.innerHeight || document.documentElement.clientHeight) &&
-          left <= (window.innerWidth || document.documentElement.clientWidth) &&
-          right >= 0
+          top < (window.innerHeight || document.documentElement.clientHeight) &&
+          left < (window.innerWidth || document.documentElement.clientWidth) &&
+          bottom > 0 &&
+          right > 0
       }
 
-      areaVisibility.push([areaNode.id, isVisible])
+      seatsWorker.current
+        .getAreaHtml([areaId, isVisible])
+        .then((areaHtml) => {
+          if (areaHtml === undefined) return
+
+          seatAreaNodes.current[areaId].innerHTML = areaHtml
+          document.getElementById(areaId).classList.toggle('hidden', isVisible)
+        })
+        // TODO handle error
+        .catch(() => console.log('OOPS 2'))
     }
-
-    buildAreaHtmls(areaVisibility).then(areaHtmls => {
-      for (const [areaId, html] of areaHtmls) {
-        seatAreaNodes.current[areaId].innerHTML = html
-        document.getElementById(areaId).classList.toggle('hidden', !!html)
-      }
-    })
   }
 
   const bind = useGesture(
@@ -236,10 +258,13 @@ function SVG ({ children, id }) {
         updateSVGTransform()
       },
       onPinch: ({ direction, first, last, origin }) => {
+        // TODO should not need direction here
         // isInteracting.current = !last
+        const isZoomingIn = direction[0] > 0
 
         if (first) {
-          pinchOrigin.current = origin
+          zoomOrigin.current = origin
+          isZoomingIn && prebuildAreaSeatsOnZoomingIn()
         }
 
         if (last) return handleGestureEnd()
@@ -251,27 +276,35 @@ function SVG ({ children, id }) {
         // use options distance bounds below
 
         transform.current = calculateTransform(
-          pinchOrigin.current,
-          direction[0] < 0 ? 0.4 : -0.4
+          zoomOrigin.current,
+          isZoomingIn ? 0.4 : -0.4
         )
         updateSVGTransform()
       },
-      onWheel: ({ event, delta, last }) => {
+      onWheel: ({ delta, event, first, last }) => {
         // isInteracting.current = !last
+        const isZoomingIn = delta[1] < 0
+
+        if (first) {
+          zoomOrigin.current = [event.clientX, event.clientY]
+          isZoomingIn && prebuildAreaSeatsOnZoomingIn()
+        }
+
         if (last) return handleGestureEnd()
 
-        const multiplier = delta[1] > 0 ? 1 : -1
+        const multiplier = isZoomingIn ? 1 : -1
 
         transform.current = calculateTransform(
-          [event.clientX, event.clientY],
+          zoomOrigin.current,
           multiplier * defaultScaleChange.current
         )
         updateSVGTransform()
       },
     },
     {
+      // TODO probably need states
       // drag: { bounds: {}, rubberband: true },
-      pinch: { distanceBounds: { max: 1, min: 1 } },
+      // pinch: { distanceBounds: { max: 1, min: 1 } },
       wheel: { axis: 'y' },
     }
   )
@@ -297,7 +330,7 @@ function SVG ({ children, id }) {
   //   }
   // }, [])
 
-  function handleClick (e) {
+  function handleClick(e) {
     const targetType = ''
     const id = e.target.id
 
@@ -316,6 +349,7 @@ function SVG ({ children, id }) {
 
   return (
     <div id='seat-wrapper' {...bind()}>
+      <div className='Spinner'></div>
       <svg
         ref={measuredRef}
         onClick={handleClick}
@@ -331,7 +365,7 @@ function SVG ({ children, id }) {
   )
 }
 
-function clamp (value, min, max) {
+function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value))
 }
 
@@ -346,4 +380,61 @@ function clamp (value, min, max) {
 
 // function queryResolver(query, variables) {
 //   return graphqlRequest('https://graphql.fauna.com/graphql', query, variables)
+// }
+
+// function prebuildAreaSeatsOnZoomingIn() {
+//   // TODO
+//   // if (isFastConnection.current) {
+//   // } else {
+//   // }
+//   const [x, y] = zoomOrigin.current
+
+//   for (const areaNode of document.getElementById('areas').children) {
+//     if (!areaNode.id) continue
+
+//     const { top, left, bottom, right } = areaNode.getBoundingClientRect()
+
+//     // prefetch mouseover area
+//     if (top < y && left < x && bottom > y && right > x) {
+//       seatsWorker.current
+//         .buildAreaHtml(areaNode.id)
+//         // TODO handle error
+//         .catch(() => console.log('OOPS 1'))
+//       break
+//     }
+//   }
+// }
+
+// function handleGestureEnd() {
+//   const isPastThreshold = transform.current.scale >= scaleThreshold.current
+//   const areaVisibility = []
+
+//   for (const areaNode of document.getElementById('areas').children) {
+//     if (!areaNode.id) continue
+
+//     let isVisible = false
+
+//     if (isPastThreshold) {
+//       const { top, left, bottom, right } = areaNode.getBoundingClientRect()
+
+//       isVisible =
+//         top < (window.innerHeight || document.documentElement.clientHeight) &&
+//         left < (window.innerWidth || document.documentElement.clientWidth) &&
+//         bottom > 0 &&
+//         right > 0
+//     }
+
+//     areaVisibility.push([areaNode.id, isVisible])
+//   }
+
+//   seatsWorker.current
+//     .buildAreaHtmls(areaVisibility)
+//     .then((areaHtmls) => {
+//       for (const [areaId, html] of areaHtmls) {
+//         seatAreaNodes.current[areaId].innerHTML = html
+//         document.getElementById(areaId).classList.toggle('hidden', !!html)
+//       }
+//     })
+//     // TODO handle error
+//     .catch(() => console.log('OOPS'))
 // }

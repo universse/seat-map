@@ -1,8 +1,8 @@
-import 'isomorphic-unfetch'
+import 'cross-fetch/polyfill'
 
-export function getGraphQLClient (endpoint = '', options = {}) {
+export function getGraphQLClient(endpoint = '', options = {}) {
   return {
-    async request (query, variables) {
+    async request(query, variables) {
       const { headers, ...others } = options
 
       const body = JSON.stringify({
@@ -31,11 +31,11 @@ export function getGraphQLClient (endpoint = '', options = {}) {
       }
     },
 
-    setHeaders (headers) {
+    setHeaders(headers) {
       options.headers = headers
     },
 
-    setHeader (key, value) {
+    setHeader(key, value) {
       const { headers } = options
 
       if (headers) {
@@ -47,6 +47,6 @@ export function getGraphQLClient (endpoint = '', options = {}) {
   }
 }
 
-export default function graphqlRequest (endpoint, query, variables) {
+export default function graphqlRequest(endpoint, query, variables) {
   return getGraphQLClient(endpoint).request(query, variables)
 }

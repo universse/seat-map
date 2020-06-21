@@ -1,6 +1,6 @@
-import 'isomorphic-unfetch'
+import 'cross-fetch/polyfill'
 
-export default async function restRequest (url, options = {}) {
+export default async function restRequest(url, options = {}) {
   const { headers, body, ...others } = options
 
   const response = await fetch(url, {

@@ -5,6 +5,16 @@
   width: 100vw;
 }
 
+#seat-wrapper .Spinner {
+  position: fixed;
+  right: 0;
+  top: 0;
+}
+
+#seat-wrapper.loading .Spinner {
+  display: block;
+}
+
 svg {
   height: 100%;
   transform-origin: 0 0 0;

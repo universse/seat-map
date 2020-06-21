@@ -9,7 +9,7 @@
     "start": "microbundle watch"
   },
   "dependencies": {
-    "isomorphic-unfetch": "3.0.0"
+    "cross-fetch": "^3.0.5"
   },
   "source": "src/index.js",
   "unpkg": "dist/index.umd.js"

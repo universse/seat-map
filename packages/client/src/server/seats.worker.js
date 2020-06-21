@@ -1,10 +1,13 @@
-export function fetchOverviewMap (id) {}
+import { restRequest } from '@seat-map/common'
 
-// prefetch / prebuild based on mouse position
+// TODO overview map
+export function fetchOverviewMap(id) {}
 
-const buildAreaHtml = memoize(
+export const fetchArea = memoize(
   function (areaId) {
-    return fetch(`/seatMap.pbf` || areaId).then(seats => {
+    // await fakeLatency()
+    // TODO fetch area
+    return restRequest('/test.json').then((seats) => {
       const areaHtmls = []
 
       for (let i = 0; i < 10; i++) {
@@ -19,53 +22,117 @@ const buildAreaHtml = memoize(
       return areaHtmls.join('')
     })
   },
-  args => args[0]
+  (args) => args[0],
+  30000
 )
 
-// [areaid, html]
-// only return changes
-// compare last visible areas and current visible areas
-export const buildAreaHtmls = (function () {
-  const areaVisibilityMap = new Map()
+export const getAreaHtml = (function () {
+  const areaVisibilityCache = new Map()
 
-  return async function (areaVisibility) {
-    const areaHtmls = []
-
-    for (const [areaId, isVisible] of areaVisibility) {
-      const html = isVisible ? await buildAreaHtml(areaId) : ''
-
-      if (html !== areaVisibilityMap.get(areaId)) {
-        areaHtmls.push([areaId, html])
+  return async function ([areaId, isVisible]) {
+    try {
+      if (isVisible !== areaVisibilityCache.get(areaId)) {
+        const html = isVisible ? await fetchArea(areaId) : ''
+        areaVisibilityCache.set(areaId, isVisible)
+        return html
       }
-
-      areaVisibilityMap.set(areaId, html)
+    } catch (e) {
+      // TODO retry
+      console.log(e)
     }
-
-    return areaHtmls
   }
 })()
 
-export function memoize (func, keyResolver) {
+export function memoize(func, keyResolver, timeout = Infinity) {
   const cache = new Map()
+  const inProgress = new Map()
 
-  return function () {
+  if (isNaN(timeout)) throw new Error('Invalid timeout argument!')
+  if (timeout < 0) timeout = 0
+
+  return async function () {
     const key = keyResolver.apply(null, arguments)
 
     if (cache.has(key)) {
       return cache.get(key)
-    }
+    } else if (inProgress.has(key)) {
+      // nothing to do lol
+    } else {
+      // promisify
+      const promise = Promise.resolve(func.apply(null, arguments))
+      inProgress.set(key, promise)
+      let result
 
-    const result = func.apply(null, arguments)
-    cache.set(key, result)
-    return result
+      try {
+        result = await promise
+
+        inProgress.delete(key)
+        cache.set(key, result)
+
+        // bust cache
+        timeout !== Infinity &&
+          setTimeout(() => {
+            cache.delete(key)
+          }, timeout)
+      } catch (e) {
+        // TODO retry
+        inProgress.delete(key)
+        throw new Error('')
+      }
+
+      return result
+    }
   }
 }
 
-// function fakeLatency() {
-//   return new Promise((resolve) =>
-//     setTimeout(resolve, Math.random() * 3000 + 500)
-//   )
-// }
+function fakeLatency() {
+  return new Promise((resolve) =>
+    setTimeout(
+      resolve,
+      // Math.random() * 3000 + 500
+      5000
+    )
+  )
+}
+
+// [areaid, html]
+// only return changes by comparing last visible areas and current visible areas
+// export const buildAreaHtmls = (function () {
+//   const visibilityCache = new Map()
+
+//   return async function (areaVisibility) {
+//     const areaHtmls = []
+
+//     try {
+//       // sequential fetches
+//       // for (const [areaId, isVisible] of areaVisibility) {
+//       //   const html = isVisible ? await fetchArea(areaId) : ''
+
+//       //   if (html !== visibilityCache.get(areaId)) {
+//       //     areaHtmls.push([areaId, html])
+//       //     visibilityCache.set(areaId, html)
+//       //   }
+//       // }
+
+//       // parallel fetches
+//       await Promise.all(
+//         areaVisibility.map(async ([areaId, isVisible]) => {
+//           const html = isVisible ? await fetchArea(areaId) : ''
+
+//           if (html !== visibilityCache.get(areaId)) {
+//             areaHtmls.push([areaId, html])
+//             visibilityCache.set(areaId, html)
+//           }
+//         })
+//       )
+
+//       return areaHtmls
+//     } catch (e) {
+//       // TODO retry
+//       console.log(e)
+//     }
+//   }
+// })()
 
 // import Pbf from 'pbf'
 
