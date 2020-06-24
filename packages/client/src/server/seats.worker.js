@@ -102,7 +102,6 @@ export function memoize (func, keyResolver, timeout = Infinity) {
       return cache.get(key)
     }
     // promisify
-    const promise = Promise.resolve(func.apply(null, arguments))
 
     let result
 
@@ -110,7 +109,10 @@ export function memoize (func, keyResolver, timeout = Infinity) {
       if (inProgress.has(key)) {
         result = await inProgress.get(key)
       } else {
+        const promise = Promise.resolve(func.apply(null, arguments))
+
         inProgress.set(key, promise)
+
         result = await promise
       }
 
