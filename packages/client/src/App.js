@@ -128,7 +128,7 @@ function SVG ({ children, id }) {
   function updateSVGTransform () {
     const { x, y, scale } = transform.current
 
-    svgRef.current.style.transform = `translate3d(${x}px, ${y}px, 0) scale(${scale})`
+    svgRef.current.style.transform = `translate3d(${x}px, ${y}px, 0) scale3d(${scale}, ${scale}, 1)`
   }
 
   const prefetchedArea = useRef(new Map())
@@ -178,7 +178,7 @@ function SVG ({ children, id }) {
         .then(res => {
           // clearTimeout(timeoutId)
           if (!res) return
-          console.log(res)
+
           const [isStillVisible, areaHtml] = res
 
           seatAreaNodes.current[areaId].innerHTML = areaHtml
