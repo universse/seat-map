@@ -1,40 +1,85 @@
-import { restRequest } from '@seat-map/common'
+import restRequest from '../utils/restRequest'
 
-// TODO overview map
-export function fetchOverviewMap(id) {}
+export function fetchOverviewMap (id = '567:45185') {
+  return restRequest(
+    `/figma/files/MVuVGa6uvlRX1j6TdN0catmn/nodes?ids=${id}&geometry=paths`
+  ).then(res => {
+    const {
+      size: { x: width, y: height },
+      children,
+    } = res.nodes[id].document
+    const overviewHtmlArray = []
+
+    for (const {
+      name,
+      relativeTransform: [[, , x], [, , y]],
+      size: { x: width, y: height },
+    } of children) {
+      overviewHtmlArray.push(
+        `<rect id='${name}' x='${x}' y='${y}' width='${width}' height='${height}' fill='#39A5F2'></rect>`
+      )
+    }
+
+    return {
+      svgProps: { width, height },
+      overviewHtml: overviewHtmlArray.join(''),
+    }
+  })
+}
+
+const RADIUS = 12
+const STROKE_WIDTH = 4
+
+const SIZE = RADIUS * 2 + STROKE_WIDTH
+const HALF_SIZE = SIZE / 2
 
 export const fetchArea = memoize(
   function (areaId) {
-    // await fakeLatency()
-    // TODO fetch area
-    return restRequest('/test.json').then((seats) => {
+    return restRequest(
+      `/figma/files/MVuVGa6uvlRX1j6TdN0catmn/nodes?ids=${areaId}&geometry=paths`
+    ).then(res => {
+      const {
+        relativeTransform: [[, , originX], [, , originY]],
+        children,
+      } = res.nodes[areaId].document
+
       const areaHtmls = []
 
-      for (let i = 0; i < 10; i++) {
-        areaHtmls.push('<circle></circle>')
+      for (const {
+        relativeTransform: [[, , x], [, , y]],
+      } of children) {
+        areaHtmls.push(
+          `<circle cx='${originX + x + HALF_SIZE}' cy='${originY +
+            y +
+            HALF_SIZE}' r='${RADIUS}'></circle>`
+        )
       }
-
-      // for (const seat of seats) {
-      //   // TODO
-      //   areaHtmls.push('')
-      // }
 
       return areaHtmls.join('')
     })
   },
-  (args) => args[0],
-  30000
+  (...args) => args[0]
+  // 30000
 )
 
 export const getAreaHtml = (function () {
   const areaVisibilityCache = new Map()
+  const renderedAreaCache = new Map()
 
   return async function ([areaId, isVisible]) {
+    areaVisibilityCache.set(areaId, isVisible)
+
+    if (!isVisible && renderedAreaCache.get(areaId) !== false) {
+      renderedAreaCache.set(areaId, false)
+      return [false, '']
+    }
+
     try {
-      if (isVisible !== areaVisibilityCache.get(areaId)) {
-        const html = isVisible ? await fetchArea(areaId) : ''
-        areaVisibilityCache.set(areaId, isVisible)
-        return html
+      const html = await fetchArea(areaId)
+
+      if (areaVisibilityCache.get(areaId) && !renderedAreaCache.get(areaId)) {
+        renderedAreaCache.set(areaId, true)
+        return [true, html]
       }
     } catch (e) {
       // TODO retry
@@ -43,7 +88,7 @@ export const getAreaHtml = (function () {
   }
 })()
 
-export function memoize(func, keyResolver, timeout = Infinity) {
+export function memoize (func, keyResolver, timeout = Infinity) {
   const cache = new Map()
   const inProgress = new Map()
 
@@ -55,38 +100,38 @@ export function memoize(func, keyResolver, timeout = Infinity) {
 
     if (cache.has(key)) {
       return cache.get(key)
-    } else if (inProgress.has(key)) {
-      // nothing to do lol
-    } else {
-      // promisify
-      const promise = Promise.resolve(func.apply(null, arguments))
-      inProgress.set(key, promise)
-      let result
+    }
+    // promisify
+    const promise = Promise.resolve(func.apply(null, arguments))
 
-      try {
+    let result
+
+    try {
+      if (inProgress.has(key)) {
+        result = await inProgress.get(key)
+      } else {
+        inProgress.set(key, promise)
         result = await promise
-
-        inProgress.delete(key)
-        cache.set(key, result)
-
-        // bust cache
-        timeout !== Infinity &&
-          setTimeout(() => {
-            cache.delete(key)
-          }, timeout)
-      } catch (e) {
-        // TODO retry
-        inProgress.delete(key)
-        throw new Error('')
       }
 
+      inProgress.delete(key)
+      cache.set(key, result)
+
+      timeout !== Infinity &&
+        setTimeout(() => {
+          cache.delete(key)
+        }, timeout)
+
       return result
+    } catch (e) {
+      inProgress.delete(key)
+      throw new Error('')
     }
   }
 }
 
-function fakeLatency() {
-  return new Promise((resolve) =>
+function fakeLatency () {
+  return new Promise(resolve =>
     setTimeout(
       resolve,
       // Math.random() * 3000 + 500
@@ -94,70 +139,3 @@ function fakeLatency() {
     )
   )
 }
-
-// [areaid, html]
-// only return changes by comparing last visible areas and current visible areas
-// export const buildAreaHtmls = (function () {
-//   const visibilityCache = new Map()
-
-//   return async function (areaVisibility) {
-//     const areaHtmls = []
-
-//     try {
-//       // sequential fetches
-//       // for (const [areaId, isVisible] of areaVisibility) {
-//       //   const html = isVisible ? await fetchArea(areaId) : ''
-
-//       //   if (html !== visibilityCache.get(areaId)) {
-//       //     areaHtmls.push([areaId, html])
-//       //     visibilityCache.set(areaId, html)
-//       //   }
-//       // }
-
-//       // parallel fetches
-//       await Promise.all(
-//         areaVisibility.map(async ([areaId, isVisible]) => {
-//           const html = isVisible ? await fetchArea(areaId) : ''
-
-//           if (html !== visibilityCache.get(areaId)) {
-//             areaHtmls.push([areaId, html])
-//             visibilityCache.set(areaId, html)
-//           }
-//         })
-//       )
-
-//       return areaHtmls
-//     } catch (e) {
-//       // TODO retry
-//       console.log(e)
-//     }
-//   }
-// })()
-
-// import Pbf from 'pbf'
-
-// import SeatMap from 'schemas'
-
-// export function getSeatMap() {
-//   return fetch(`/seatMap.pbf`)
-//     .then((res) => res.arrayBuffer())
-//     .then((buffer) => {
-//       const pbf = new Pbf(buffer)
-//       return SeatMap.SeatMap.read(pbf)
-//     })
-// }
-
-// const flatbuffers = require("flatbuffers").flatbuffers;
-
-// const SeatMapFBS = require("../schema/SeatMap_generated").SeatMap;
-
-// export function getSeatMap() {
-//   return fetch(`/seatMap.bin`)
-//     .then((res) => res.arrayBuffer())
-//     .then((arrayBuffer) => {
-//       const bytes = new Uint8Array(arrayBuffer)
-//       const buffer = new flatbuffers.ByteBuffer(bytes)
-//       const seatMap = SeatMapFBS.SeatMap.getRootAsSeatMap(buffer)
-//       console.log(seatMap.groups(0).bounds(0).y2())
-//     })
-// }

@@ -1,0 +1,12 @@
+[build]
+  command = "yarn build"
+  publish = "packages/client/build"
+[build.environment]
+  YARN_VERSION = "1.22.4"
+[[redirects]]
+  from = "/figma/*"
+  to = "https://api.figma.com/v1/:splat"
+  status = 200
+  force = true
+  [redirects.headers]
+    X-FIGMA-TOKEN = "X_FIGMA_TOKEN"

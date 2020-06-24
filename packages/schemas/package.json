@@ -14,7 +14,7 @@
     "pbf": "^3.2.1"
   },
   "devDependencies": {
-    "pbf-loader": "1.1.0"
+    "pbf-loader": "^1.1.0"
   },
   "source": "src/index.js",
   "unpkg": "dist/index.umd.js"

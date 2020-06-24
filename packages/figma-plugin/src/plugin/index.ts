@@ -10,11 +10,11 @@ const SIZE = RADIUS * 2 + STROKE_WIDTH
 const HALF_SIZE = SIZE / 2
 
 const { width, height } = figma.currentPage.findOne(
-  node => node.name === 'layer-seats'
+  (node) => node.name === 'layer-seats'
 ) as GroupNode
 
 const seatGroupNode = figma.currentPage.findOne(
-  node => node.name === 'seats'
+  (node) => node.name === 'seats'
 ) as FrameNode
 
 const seatGroups = seatGroupNode.children as [GroupNode]
@@ -60,7 +60,7 @@ const seatMap = {
 
 // [id, cx, cy]
 
-seatGroups.forEach(seatGroup => {
+seatGroups.forEach((seatGroup) => {
   const relativeTransform = clone(seatGroup.relativeTransform)
   relativeTransform[0][2] = Math.round(seatGroup.x)
   relativeTransform[1][2] = Math.round(seatGroup.y)
@@ -159,7 +159,7 @@ function clone(val: any) {
     return val
   } else if (type === 'object') {
     if (val instanceof Array) {
-      return val.map(x => clone(x))
+      return val.map((x) => clone(x))
     } else if (val instanceof Uint8Array) {
       return new Uint8Array(val)
     } else {

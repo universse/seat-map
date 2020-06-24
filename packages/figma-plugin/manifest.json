@@ -1,6 +1,6 @@
 {
-  "id": "seats",
-  "name": "Seats",
+  "id": "seat-map",
+  "name": "Seat Map",
   "api": "1.0.0",
   "main": "dist/code.js",
   "ui": "dist/ui.html"
