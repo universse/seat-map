@@ -173,25 +173,12 @@ function SVG ({ children, id }) {
           right > 0
       }
 
-      // let timeoutId
-
-      // if (isVisible) {
-      //   timeoutId = setTimeout(() => {
-      //     document
-      //       .getElementById('seat-wrapper')
-      //       .classList.toggle('loading', true)
-      //   }, 100)
-      // }
-      // document
-      //   .getElementById('seat-wrapper')
-      //   .classList.toggle('loading', false)
-
       seatsWorker.current
         .getAreaHtml([areaId, isVisible])
         .then(res => {
           // clearTimeout(timeoutId)
           if (!res) return
-
+          console.log(res)
           const [isStillVisible, areaHtml] = res
 
           seatAreaNodes.current[areaId].innerHTML = areaHtml
@@ -203,6 +190,19 @@ function SVG ({ children, id }) {
         // TODO handle error
         .catch(e => console.log(e))
     }
+
+    // let timeoutId
+
+    // if (isVisible) {
+    //   timeoutId = setTimeout(() => {
+    //     document
+    //       .getElementById('seat-wrapper')
+    //       .classList.toggle('loading', true)
+    //   }, 100)
+    // }
+    // document
+    //   .getElementById('seat-wrapper')
+    //   .classList.toggle('loading', false)
   }
 
   const bind = useGesture(

@@ -69,9 +69,13 @@ export const getAreaHtml = (function () {
   return async function ([areaId, isVisible]) {
     areaVisibilityCache.set(areaId, isVisible)
 
-    if (!isVisible && renderedAreaCache.get(areaId) !== false) {
-      renderedAreaCache.set(areaId, false)
-      return [false, '']
+    if (!isVisible) {
+      if (renderedAreaCache.get(areaId) !== false) {
+        renderedAreaCache.set(areaId, false)
+        return [false, '']
+      } else {
+        return
+      }
     }
 
     try {
