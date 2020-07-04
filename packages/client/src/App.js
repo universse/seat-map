@@ -131,7 +131,17 @@ function SVG ({ children, id }) {
     svgRef.current.style.transform = `translate3d(${x}px, ${y}px, 0) scale3d(${scale}, ${scale}, 1)`
   }
 
+  const fetchArea = memoize(
+    function (areaId) {
+      return seatsWorker.current.fetchArea(areaId)
+    },
+    (...args) => args[0]
+    // 30000
+  )
+
   const prefetchedArea = useRef(new Map())
+  const areaVisibility = useRef(new Map())
+  const renderedAreas = useRef(new Map())
 
   function prefetchAreaSeatsOnZoomingIn () {
     // TODO
@@ -148,7 +158,7 @@ function SVG ({ children, id }) {
 
       // prefetch mouseover area
       if (top < y && left < x && bottom > y && right > x) {
-        seatsWorker.current.fetchArea(areaId).catch(() => console.log('OOPS 1'))
+        fetchArea(areaId).catch(() => console.log('OOPS 1'))
         break
       }
     }
@@ -173,22 +183,31 @@ function SVG ({ children, id }) {
           right > 0
       }
 
-      seatsWorker.current
-        .getAreaHtml([areaId, isVisible])
-        .then(res => {
-          // clearTimeout(timeoutId)
-          if (!res) return
+      areaVisibility.current.set(areaId, isVisible)
 
-          const [isStillVisible, areaHtml] = res
+      if (isVisible) {
+        fetchArea(areaId)
+          .then(areaHtml => {
+            if (
+              areaVisibility.current.get(areaId) &&
+              !renderedAreas.current.get(areaId)
+            ) {
+              renderedAreas.current.set(areaId, true)
 
-          seatAreaNodes.current[areaId].innerHTML = areaHtml
+              seatAreaNodes.current[areaId].innerHTML = areaHtml
+              document.getElementById(areaId).classList.toggle('hidden', true)
+            }
+          })
+          // TODO handle error
+          .catch(e => console.log(e))
+      } else {
+        if (renderedAreas.current.get(areaId) !== false) {
+          renderedAreas.current.set(areaId, false)
 
-          document
-            .getElementById(areaId)
-            .classList.toggle('hidden', isStillVisible)
-        })
-        // TODO handle error
-        .catch(e => console.log(e))
+          seatAreaNodes.current[areaId].innerHTML = ''
+          document.getElementById(areaId).classList.toggle('hidden', false)
+        }
+      }
     }
 
     // let timeoutId
@@ -326,6 +345,50 @@ function SVG ({ children, id }) {
 
 function clamp (value, min, max) {
   return Math.max(min, Math.min(max, value))
+}
+
+function memoize (func, keyResolver, timeout = Infinity) {
+  const cache = new Map()
+  const inProgress = new Map()
+
+  if (isNaN(timeout)) throw new Error('Invalid timeout argument!')
+  if (timeout < 0) timeout = 0
+
+  return async function () {
+    const key = keyResolver.apply(null, arguments)
+
+    if (cache.has(key)) {
+      return cache.get(key)
+    }
+    // promisify
+
+    let result
+
+    try {
+      if (inProgress.has(key)) {
+        result = await inProgress.get(key)
+      } else {
+        const promise = Promise.resolve(func.apply(null, arguments))
+
+        inProgress.set(key, promise)
+
+        result = await promise
+      }
+
+      inProgress.delete(key)
+      cache.set(key, result)
+
+      timeout !== Infinity &&
+        setTimeout(() => {
+          cache.delete(key)
+        }, timeout)
+
+      return result
+    } catch (e) {
+      inProgress.delete(key)
+      throw new Error('')
+    }
+  }
 }
 
 // const query = `{
