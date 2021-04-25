@@ -14,7 +14,7 @@ const TargetTypes = {
   SEAT: 'seat',
 }
 
-export default function App () {
+export default function App() {
   return (
     <SVG>
       <g id='overview'></g>
@@ -23,7 +23,7 @@ export default function App () {
   )
 }
 
-function SVG ({ children, id }) {
+function SVG({ children, id }) {
   ////////// network condition
   const isFastConnection = useRef(false)
 
@@ -101,7 +101,7 @@ function SVG ({ children, id }) {
   // const isInteracting = useRef(false)
   const zoomOrigin = useRef([0, 0])
 
-  function calculateTransform ([clientX, clientY], scaleChange) {
+  function calculateTransform([clientX, clientY], scaleChange) {
     const { x: currentX, y: currentY, scale: currentScale } = transform.current
 
     const nextScale = clamp(
@@ -125,7 +125,7 @@ function SVG ({ children, id }) {
     }
   }
 
-  function updateSVGTransform () {
+  function updateSVGTransform() {
     const { x, y, scale } = transform.current
 
     svgRef.current.style.transform = `translate3d(${x}px, ${y}px, 0) scale3d(${scale}, ${scale}, 1)`
@@ -143,7 +143,7 @@ function SVG ({ children, id }) {
   const areaVisibility = useRef(new Map())
   const renderedAreas = useRef(new Map())
 
-  function prefetchAreaSeatsOnZoomingIn () {
+  function prefetchAreaSeatsOnZoomingIn() {
     // TODO
     // if (isFastConnection.current) {
     // } else {
@@ -164,7 +164,7 @@ function SVG ({ children, id }) {
     }
   }
 
-  function handleGestureEnd () {
+  function handleGestureEnd() {
     const isPastThreshold = transform.current.scale >= scaleThreshold.current
 
     for (const areaNode of document.getElementById('overview').children) {
@@ -187,7 +187,7 @@ function SVG ({ children, id }) {
 
       if (isVisible) {
         fetchArea(areaId)
-          .then(areaHtml => {
+          .then((areaHtml) => {
             if (
               areaVisibility.current.get(areaId) &&
               !renderedAreas.current.get(areaId)
@@ -199,7 +199,7 @@ function SVG ({ children, id }) {
             }
           })
           // TODO handle error
-          .catch(e => console.log(e))
+          .catch((e) => console.log(e))
       } else {
         if (renderedAreas.current.get(areaId) !== false) {
           renderedAreas.current.set(areaId, false)
@@ -307,7 +307,7 @@ function SVG ({ children, id }) {
   //   }
   // }, [])
 
-  function handleClick (e) {
+  function handleClick(e) {
     const targetType = ''
     const id = e.target.id
 
@@ -343,11 +343,11 @@ function SVG ({ children, id }) {
   )
 }
 
-function clamp (value, min, max) {
+function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value))
 }
 
-function memoize (func, keyResolver, timeout = Infinity) {
+function memoize(func, keyResolver, timeout = Infinity) {
   const cache = new Map()
   const inProgress = new Map()
 
@@ -362,18 +362,18 @@ function memoize (func, keyResolver, timeout = Infinity) {
     }
     // promisify
 
-    let result
+    let promise
 
     try {
       if (inProgress.has(key)) {
-        result = await inProgress.get(key)
+        promise = inProgress.get(key)
       } else {
-        const promise = Promise.resolve(func.apply(null, arguments))
+        promise = Promise.resolve(func.apply(null, arguments))
 
         inProgress.set(key, promise)
-
-        result = await promise
       }
+
+      const result = await promise
 
       inProgress.delete(key)
       cache.set(key, result)
